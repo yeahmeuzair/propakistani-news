@@ -3,7 +3,7 @@ name: Auto News Poster
 on:
   schedule:
     - cron: '0 */2 * * *' # Runs automatically every 2 hours
-  workflow_dispatch: # Allows you to run it manually by clicking a button in GitHub
+  workflow_dispatch: # Allows manual trigger
 
 jobs:
   run-bot:
@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: setup-python@v5
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
