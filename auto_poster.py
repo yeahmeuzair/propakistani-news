@@ -121,36 +121,42 @@ def main():
     feed = feedparser.parse(FEED_URL)
     history = load_history()
     
-    count = 0
     for entry in feed.entries:
+        # Check agar article pehle post nahi hua
         if entry.link not in history:
             print(f"Processing: {entry.title}")
-            try:
-                ai_data = process_with_ai(entry.title, entry.summary)
-                success = post_to_wordpress(ai_data)
-                
-                if success:
-                    print(f"Draft created successfully: {ai_data['title']}")
-                    history.append(entry.link)
-                    count += 1
-                else:
-                    print("Failed to save draft to WordPress.")
-                
-                # Wait 15 seconds before processing the next article to prevent API bans
-                print("Waiting 15 seconds to respect API rate limits...")
-                time.sleep(15)
-                
-            except Exception as e:
-                print(f"Error processing entry: {e}")
-                # If a rate limit (429) is hit, stop the script immediately
-                if "429" in str(e):
-                    print("API Rate limit reached. Stopping execution for this run.")
-                    break
-                
-            if count >= 2: # Processes a maximum of 2 new articles per run
-                break
-                
-    save_history(history)
+            
+            # Jab tak yeh specific article post nahi hota, loop chalta rahega
+            while True:
+                try:
+                    ai_data = process_with_ai(entry.title, entry.summary)
+                    success = post_to_wordpress(ai_data)
+                    
+                    if success:
+                        print(f"Draft created successfully: {ai_data['title']}")
+                        history.append(entry.link)
+                        save_history(history) # Sath sath history save karein taake crash hone par data zaya na ho
+                    else:
+                        print("Failed to save draft to WordPress.")
+                    
+                    # Agle naye article par jane se pehle 15 seconds wait karein
+                    print("Waiting 15 seconds before the next article...")
+                    time.sleep(15)
+                    break # Success! Break the retry loop and move to the next article
+                    
+                except Exception as e:
+                    error_msg = str(e)
+                    print(f"Error processing entry: {error_msg}")
+                    
+                    # Agar Quota (429) ya Server Busy (503) ka error aaye
+                    if "429" in error_msg or "503" in error_msg:
+                        print("API Rate limit reached. Retrying the EXACT SAME article in 15 seconds...")
+                        time.sleep(15)
+                        # Loop continue rahega aur wapas upar ja kar same article try karega
+                    else:
+                        # Agar koi aur error ho (jaise 404 ya syntax error), toh loop tod do taake script na phanse
+                        print("Unknown error. Skipping this article...")
+                        break
 
 if __name__ == "__main__":
     main()
