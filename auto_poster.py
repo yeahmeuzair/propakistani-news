@@ -1,3 +1,4 @@
+import time
 import os
 import json
 import base64
@@ -134,10 +135,19 @@ def main():
                     count += 1
                 else:
                     print("Failed to save draft to WordPress.")
+                
+                # Wait 15 seconds before processing the next article to prevent API bans
+                print("Waiting 15 seconds to respect API rate limits...")
+                time.sleep(15)
+                
             except Exception as e:
                 print(f"Error processing entry: {e}")
+                # If a rate limit (429) is hit, stop the script immediately
+                if "429" in str(e):
+                    print("API Rate limit reached. Stopping execution for this run.")
+                    break
                 
-            if count >= 2: # Processes a maximum of 2 new articles per run to prevent API/WP overload
+            if count >= 2: # Processes a maximum of 2 new articles per run
                 break
                 
     save_history(history)
