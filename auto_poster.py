@@ -18,14 +18,26 @@ HISTORY_FILE = "posted_links.json"
 WP_URL = os.environ.get("WP_URL")
 WP_USERNAME = os.environ.get("WP_USERNAME")
 WP_APP_PASSWORD = os.environ.get("WP_APP_PASSWORD")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 EMAIL_USER = os.environ.get("EMAIL_USER")
 EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD")
 
+# API Key Rotation Setup (Loads both keys from GitHub Secrets)
+key_1 = os.environ.get("GEMINI_API_KEY")
+key_2 = os.environ.get("GEMINI_API_KEY_2")
+api_keys = [k for k in (key_1, key_2) if k]  # Filters out any empty keys
+current_key_index = 0
+
+def get_next_api_key():
+    global current_key_index
+    if not api_keys:
+        raise ValueError("No API keys found in GitHub Secrets.")
+    key_to_use = api_keys[current_key_index]
+    # Rotate between key 1 and key 2
+    current_key_index = (current_key_index + 1) % len(api_keys)
+    return key_to_use
+
 # Replace with your actual Educational News category ID in WordPress
 CATEGORY_ID = 15 
-
-client = genai.Client(api_key=GEMINI_API_KEY)
 
 def load_history():
     if os.path.exists(HISTORY_FILE):
@@ -59,6 +71,10 @@ def send_email_alert(title, edit_url):
         print(f"Failed to send email alert: {e}")
 
 def process_with_ai(title, summary):
+    # Fetch the next API key in the rotation and initialize the client
+    active_key = get_next_api_key()
+    client = genai.Client(api_key=active_key)
+    
     prompt = f"""
     You are an expert SEO content writer for an educational website (BISE Pakistan).
     Rewrite the following news item into a professional, humanized, factual, and 100% SEO-optimized article.
@@ -122,11 +138,9 @@ def main():
     history = load_history()
     
     for entry in feed.entries:
-        # Check agar article pehle post nahi hua
         if entry.link not in history:
             print(f"Processing: {entry.title}")
             
-            # Jab tak yeh specific article post nahi hota, loop chalta rahega
             while True:
                 try:
                     ai_data = process_with_ai(entry.title, entry.summary)
@@ -135,26 +149,23 @@ def main():
                     if success:
                         print(f"Draft created successfully: {ai_data['title']}")
                         history.append(entry.link)
-                        save_history(history) # Sath sath history save karein taake crash hone par data zaya na ho
+                        save_history(history)
                     else:
                         print("Failed to save draft to WordPress.")
                     
-                    # Agle naye article par jane se pehle 15 seconds wait karein
-                    print("Waiting 15 seconds before the next article...")
-                    time.sleep(15)
-                    break # Success! Break the retry loop and move to the next article
+                    # Waits 3 minutes before processing the next article
+                    print("Waiting 3 minutes (180 seconds) before the next article...")
+                    time.sleep(180)
+                    break
                     
                 except Exception as e:
                     error_msg = str(e)
                     print(f"Error processing entry: {error_msg}")
                     
-                    # Agar Quota (429) ya Server Busy (503) ka error aaye
                     if "429" in error_msg or "503" in error_msg:
-                        print("API Rate limit reached. Retrying the EXACT SAME article in 15 seconds...")
+                        print("API Rate limit reached. Retrying the EXACT SAME article in 15 seconds with the next API key...")
                         time.sleep(15)
-                        # Loop continue rahega aur wapas upar ja kar same article try karega
                     else:
-                        # Agar koi aur error ho (jaise 404 ya syntax error), toh loop tod do taake script na phanse
                         print("Unknown error. Skipping this article...")
                         break
 
