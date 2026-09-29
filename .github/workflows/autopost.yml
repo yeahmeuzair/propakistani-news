@@ -8,6 +8,7 @@ on:
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    timeout-minutes: 30 # Increased to 30 minutes because the 3-minute wait will take longer
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -24,6 +25,7 @@ jobs:
       - name: Run Script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }} # Added your second API key here
           WP_URL: ${{ secrets.WP_URL }}
           WP_USERNAME: ${{ secrets.WP_USERNAME }}
           WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
